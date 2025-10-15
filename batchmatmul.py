@@ -9,6 +9,7 @@ from tvm.meta_schedule.testing import te_workload
 from tvm.te import create_prim_func
 import os
 from pathlib import Path
+import subprocess
 
 
 #target = tvm.target.Target(f"cuda -max_threads_per_block 1024 -max_shared_memory_per_block 49152") # 3090
@@ -39,10 +40,34 @@ def batch_matmul_mkkn(  # pylint: disable=invalid-name,missing-docstring
     )
     return (x, y, z)
 
+def get_gpu_name():
+    """
+    Uses nvidia-smi to get the GPU name.
+    Returns a short name: "3090", "V100", or "A100"
+    """
+    try:
+        # Run nvidia-smi and get the GPU name
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True, text=True, check=True
+        )
+        full_name = result.stdout.strip()
+        # Map full GPU names to our short names
+        if "3090" in full_name:
+            return "3090"
+        elif "V100" in full_name:
+            return "V100"
+        elif "A100" in full_name:
+            return "A100"
+        else:
+            raise ValueError(f"Unrecognized GPU: {full_name}")
+    except Exception as e:
+        raise RuntimeError(f"Failed to detect GPU: {e}")
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Batch Matrix-multiplication")
 
+    parser = argparse.ArgumentParser(description="Batch Matrix-multiplication")
     parser.add_argument(
         "--batchsize", type=int, default=16,
         help="Batch size (default: 16)"
@@ -61,11 +86,37 @@ def main():
     )
 
     args = parser.parse_args()
+    batchsize, M, N, K, GPU = args.batchsize, args.M, args.N, args.K, get_gpu_name()
+    print(f"Batch Matmul, GPU model:{GPU}")
+    print(f"Batch size: {batchsize}, M: {M}, N: {N}, K: {K}")
 
-    print("Batch Matmul")
-    print(f"Batch size: {args.batchsize}, M: {args.M}, N: {args.N}, K: {args.K}")
+    if GPU == "3090":
+        target = tvm.target.Target({
+            "kind": "cuda",
+            "arch": "sm_86",
+            "max_threads_per_block": 1024,
+            "max_shared_memory_per_block": 49152
+        })
+    elif GPU == "V100":
+        target = tvm.target.Target({
+            "kind": "cuda",
+            "arch": "sm_70",
+            "max_threads_per_block": 1024,
+            "max_shared_memory_per_block": 49152
+        })
+    elif GPU == "A100":
+        target = tvm.target.Target({
+            "kind": "cuda",
+            "arch": "sm_80",
+            "max_threads_per_block": 1024,
+            "max_shared_memory_per_block": 49152
+        })
+    else:
+        raise ValueError(f"Unknown GPU: {GPU}")
+        exit(1)
+    
 
-    bmm = create_prim_func(batch_matmul_mkkn(args.batchsize, args.M, args.K, args.N, in_dtype="float16", out_dtype="float16"))
+    bmm = create_prim_func(batch_matmul_mkkn(batchsize, M, K, N, in_dtype="float16", out_dtype="float16"))
     print(bmm)
 
     database = ms.tune_tir(
@@ -114,4 +165,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
