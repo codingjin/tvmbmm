@@ -33,7 +33,7 @@ def main():
     )
     parser.add_argument(
         "--I", type=int, default=0,
-        help="Index, top{index} {default: 0}"
+        help="Index, top{index+1} {default: 0}"
     )
 
     args = parser.parse_args()
