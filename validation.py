@@ -45,7 +45,7 @@ def main():
     # TVM
     a_nd = tvm.runtime.tensor(a_np, device=tvm.cuda())
     b_nd = tvm.runtime.tensor(b_np, device=tvm.cuda())
-    c_nd = tvm.runtime.tensor(np.zeros((batchsize, M, N), dtype="float16"), device=tvm.device('cuda', 0))
+    c_nd = tvm.runtime.tensor(np.zeros((batchsize, M, N), dtype="float16"), device=tvm.cuda())
 
     f = tvm.runtime.load_module("./sodir/top10.so")
     f(a_nd, b_nd, c_nd)
