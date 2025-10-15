@@ -12,8 +12,9 @@ from pathlib import Path
 
 
 #target = tvm.target.Target(f"cuda -max_threads_per_block 1024 -max_shared_memory_per_block 49152") # 3090
-target = tvm.target.Target({"kind": "cuda", "arch": "sm_86", "max_threads_per_block": 1024, "max_shared_memory_per_block": 49152}) # 3090
+#target = tvm.target.Target({"kind": "cuda", "arch": "sm_86", "max_threads_per_block": 1024, "max_shared_memory_per_block": 49152}) # 3090
 #target = tvm.target.Target({"kind": "cuda", "arch": "sm_70", "max_threads_per_block": 1024, "max_shared_memory_per_block": 49152}) # V100
+target = tvm.target.Target({"kind": "cuda", "arch": "sm_80", "max_threads_per_block": 1024, "max_shared_memory_per_block": 49152}) # A100
 
 FILE_RUNSECS = "run_secs"
 
@@ -22,8 +23,8 @@ def batch_matmul_mkkn(  # pylint: disable=invalid-name,missing-docstring
     M: int,
     N: int,
     K: int,
-    in_dtype: str = "float32",
-    out_dtype: str = "float32",
+    in_dtype: str = "float16",
+    out_dtype: str = "float16",
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
     x = te.placeholder((B, M, K), name="X", dtype=in_dtype)
     y = te.placeholder((B, K, N), name="Y", dtype=in_dtype)
@@ -64,7 +65,7 @@ def main():
     print("Batch Matmul")
     print(f"Batch size: {args.batchsize}, M: {args.M}, N: {args.N}, K: {args.K}")
 
-    bmm = create_prim_func(batch_matmul_mkkn(args.batchsize, args.M, args.K, args.N, in_dtype="float32", out_dtype="float32"))
+    bmm = create_prim_func(batch_matmul_mkkn(args.batchsize, args.M, args.K, args.N, in_dtype="float16", out_dtype="float16"))
     print(bmm)
 
     database = ms.tune_tir(

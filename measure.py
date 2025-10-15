@@ -6,9 +6,9 @@ import argparse
 from zeus.monitor import ZeusMonitor
 
 NUM_WARMUP = 3
-NUM_RUN = 10
+NUM_RUN = 100
 NUM_MEASURE = 100
-monitor = ZeusMonitor(gpu_indices=[0], approx_instant_energy=False)
+monitor = ZeusMonitor(approx_instant_energy=False)
 
 np.random.seed(137)
 
@@ -43,29 +43,42 @@ def main():
     func = tvm.runtime.load_module(sopath)
 
     # warmup
+    print("warmup")
     for i in range(NUM_WARMUP):
-        a_np = np.random.uniform(size=(batchsize, M, K)).astype("float32")
-        b_np = np.random.uniform(size=(batchsize, K, N)).astype("float32")
+        a_np = np.random.uniform(size=(batchsize, M, K)).astype("float16")
+        b_np = np.random.uniform(size=(batchsize, K, N)).astype("float16")
 
-        a_nd = tvm.runtime.tensor(a_np, device=tvm.device('cuda', 0))
-        b_nd = tvm.runtime.tensor(b_np, device=tvm.device('cuda', 0))
-        c_nd = tvm.runtime.tensor(np.zeros((batchsize, M, N), dtype="float32"), device=tvm.device('cuda', 0))
+        a_nd = tvm.runtime.tensor(a_np, device=tvm.cuda())
+        b_nd = tvm.runtime.tensor(b_np, device=tvm.cuda())
+        c_nd = tvm.runtime.tensor(np.zeros((batchsize, M, N), dtype="float16"), device=tvm.cuda())
         monitor.begin_window("run")
-        for j in range(32):
+        for j in range(NUM_MEASURE):
             func(a_nd, b_nd, c_nd)
         energy = monitor.end_window("run")
+        #print(energy)
+        print(f"Energy: {energy.total_energy} J")
+    print("warmup done\n")
     
     # run
+    results = []
     for i in range(NUM_RUN):
-        a_np = np.random.uniform(size=(batchsize, M, K)).astype("float32")
-        b_np = np.random.uniform(size=(batchsize, K, N)).astype("float32")
+        a_np = np.random.uniform(size=(batchsize, M, K)).astype("float16")
+        b_np = np.random.uniform(size=(batchsize, K, N)).astype("float16")
 
         a_nd = tvm.runtime.tensor(a_np, device=tvm.device('cuda', 0))
         b_nd = tvm.runtime.tensor(b_np, device=tvm.device('cuda', 0))
-        c_nd = tvm.runtime.tensor(np.zeros((batchsize, M, N), dtype="float32"), device=tvm.device('cuda', 0))
+        c_nd = tvm.runtime.tensor(np.zeros((batchsize, M, N), dtype="float16"), device=tvm.device('cuda', 0))
 
-        func(a_nd, b_nd, c_nd)
+        #print(f"run {i}")
+        monitor.begin_window("run")
+        for j in range(NUM_MEASURE):
+            func(a_nd, b_nd, c_nd)
+        energy = monitor.end_window("run")
+        #print(energy)
+        results.append(energy.total_energy)
+        
 
+        """
         monitor.begin_window("run")
         for j in range(NUM_MEASURE):
             func(a_nd, b_nd, c_nd)
@@ -73,16 +86,11 @@ def main():
         print(energy)
         print(energy.gpu_energy[0])
         #print(f"Energy: {energy.total_energy} J")
-        
-    
+        """
+    mean, std = np.mean(results), np.std(results)
+    print(f"BMM I={I} batchsize={batchsize} M={M} N={N} K={K}")
+    print(f"Mean energy consumption: {mean} J, std: {std}")
     print("Complete!")
-
-
-
-
-
-
-
 
 if __name__ == "__main__":
     main()
