@@ -15,9 +15,9 @@ import subprocess
 #target = tvm.target.Target(f"cuda -max_threads_per_block 1024 -max_shared_memory_per_block 49152") # 3090
 #target = tvm.target.Target({"kind": "cuda", "arch": "sm_86", "max_threads_per_block": 1024, "max_shared_memory_per_block": 49152}) # 3090
 #target = tvm.target.Target({"kind": "cuda", "arch": "sm_70", "max_threads_per_block": 1024, "max_shared_memory_per_block": 49152}) # V100
-target = tvm.target.Target({"kind": "cuda", "arch": "sm_80", "max_threads_per_block": 1024, "max_shared_memory_per_block": 49152}) # A100
-
+#target = tvm.target.Target({"kind": "cuda", "arch": "sm_80", "max_threads_per_block": 1024, "max_shared_memory_per_block": 49152}) # A100
 FILE_RUNSECS = "run_secs"
+sodir = "./sodir"
 
 def batch_matmul_mkkn(  # pylint: disable=invalid-name,missing-docstring
     B: int,
@@ -87,7 +87,7 @@ def main():
 
     args = parser.parse_args()
     batchsize, M, N, K, GPU = args.batchsize, args.M, args.N, args.K, get_gpu_name()
-    print(f"Batch Matmul, GPU model:{GPU}")
+    print(f"Batch Matmul, GPU model: {GPU}")
     print(f"Batch size: {batchsize}, M: {M}, N: {N}, K: {K}")
 
     if GPU == "3090":
@@ -114,7 +114,7 @@ def main():
     else:
         raise ValueError(f"Unknown GPU: {GPU}")
         exit(1)
-    
+    print(f"target: {target}")
 
     bmm = create_prim_func(batch_matmul_mkkn(batchsize, M, K, N, in_dtype="float16", out_dtype="float16"))
     print(bmm)
@@ -141,9 +141,8 @@ def main():
     tune_record_list = database.get_all_tuning_records()
     workload = tune_record_list[0].workload
     mod = workload.mod
-
     top10 = database.get_top_k(workload, 10)
-    sodir = "./sodir"
+    
     os.makedirs(sodir, exist_ok=True)
     Path(FILE_RUNSECS).write_text("")
     with open(FILE_RUNSECS, "a") as f:
