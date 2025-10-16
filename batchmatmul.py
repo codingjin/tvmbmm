@@ -43,7 +43,7 @@ def batch_matmul_mkkn(  # pylint: disable=invalid-name,missing-docstring
 def get_gpu_name():
     """
     Uses nvidia-smi to get the GPU name.
-    Returns a short name: "3090", "V100", or "A100"
+    Returns a short name: "3090", "4090", "V100", or "A100"
     """
     try:
         # Run nvidia-smi and get the GPU name
@@ -55,6 +55,8 @@ def get_gpu_name():
         # Map full GPU names to our short names
         if "3090" in full_name:
             return "3090"
+        elif "4090" in full_name:
+            return "4090"
         elif "V100" in full_name:
             return "V100"
         elif "A100" in full_name:
@@ -94,6 +96,13 @@ def main():
         target = tvm.target.Target({
             "kind": "cuda",
             "arch": "sm_86",
+            "max_threads_per_block": 1024,
+            "max_shared_memory_per_block": 49152
+        })
+    elif GPU == "4090":
+        target = tvm.target.Target({
+            "kind": "cuda",
+            "arch": "sm_89",
             "max_threads_per_block": 1024,
             "max_shared_memory_per_block": 49152
         })

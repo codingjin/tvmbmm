@@ -52,13 +52,14 @@ def main():
         a_nd = tvm.runtime.tensor(a_np, device=tvm.cuda())
         b_nd = tvm.runtime.tensor(b_np, device=tvm.cuda())
         c_nd = tvm.runtime.tensor(np.zeros((batchsize, M, N), dtype="float16"), device=tvm.cuda())
+        func(a_nd, b_nd, c_nd)
         monitor.begin_window("run")
         for j in range(NUM_MEASURE):
             func(a_nd, b_nd, c_nd)
         energy = monitor.end_window("run")
         #print(energy)
         print(f"Energy: {energy.total_energy} J")
-    print("warmup done\n")
+    print("warmup done")
     
     # run
     results = []
@@ -71,6 +72,7 @@ def main():
         c_nd = tvm.runtime.tensor(np.zeros((batchsize, M, N), dtype="float16"), device=tvm.cuda())
 
         #print(f"run {i}")
+        func(a_nd, b_nd, c_nd)
         monitor.begin_window("run")
         for j in range(NUM_MEASURE):
             func(a_nd, b_nd, c_nd)
@@ -114,7 +116,8 @@ def main():
     flops = 2 * batchsize * M * N * K
     gflops = flops / timens if timens != 0 else float("inf")
     print(f"{gflops} GFLOPs")
-    print("Complete!\n")
+    print("Complete!")
+    print("----------------------------------------------\n")
 
 if __name__ == "__main__":
     main()
