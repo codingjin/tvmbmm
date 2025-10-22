@@ -134,8 +134,8 @@ def main():
     database = ms.tune_tir(
         mod=bmm,
         target=target,
-        max_trials_global=20, # 1000
-        num_trials_per_iter=8, # 64
+        max_trials_global=1000,
+        num_trials_per_iter=64,
         work_dir="./",
         runner=ms.runner.LocalRunner(
             evaluator_config=EvaluatorConfig(
