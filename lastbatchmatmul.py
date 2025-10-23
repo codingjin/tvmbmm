@@ -16,11 +16,11 @@ import subprocess
 #target = tvm.target.Target({"kind": "cuda", "arch": "sm_86", "max_threads_per_block": 1024, "max_shared_memory_per_block": 49152}) # 3090
 #target = tvm.target.Target({"kind": "cuda", "arch": "sm_70", "max_threads_per_block": 1024, "max_shared_memory_per_block": 49152}) # V100
 #target = tvm.target.Target({"kind": "cuda", "arch": "sm_80", "max_threads_per_block": 1024, "max_shared_memory_per_block": 49152}) # A100
-FILE_RUNSECS = "run_secs"
-sodir = "./sodir"
 
-LAST_RUNSECS = "last_run_secs"
+FILE_RUNSECS = "run_secs"
+topso = "./top.so"
 lastso = "./last.so"
+FILE_TURNINGRECORDS = "turningrecords"
 
 def batch_matmul_mkkn(  # pylint: disable=invalid-name,missing-docstring
     B: int,
@@ -154,20 +154,39 @@ def main():
     totalnum = len(tune_record_list)
     workload = tune_record_list[0].workload
     mod = workload.mod
+    print(f"The total number of tuning records is {totalnum}")
+
     sortedrecords = database.get_top_k(workload, totalnum)
+    Path(FILE_TURNINGRECORDS).write_text("")
+    with open(FILE_TURNINGRECORDS, "a") as f:
+        for r in tune_record_list:
+            f.write(f"{r.run_secs[0].value}\n")
 
-    Path(LAST_RUNSECS).write_text(f"{sortedrecords[-1].run_secs[0].value}\t{sortedrecords[-1].run_secs[0].value * 1e9}")
+    Path(FILE_RUNSECS).write_text("")
+    with open(FILE_RUNSECS, "a") as f:
+        # top so
+        db = ms.database.MemoryDatabase()
+        db.commit_workload(sortedrecords[0].workload.mod)
+        db.commit_tuning_record(sortedrecords[0])
+        sch = ms.tir_integration.compile_tir(db, mod, target)
+        print("Topsch mod")
+        print(sch.mod)
+        with tvm.transform.PassContext(config={"tir.disable_assert": True}):
+            lib = tvm.tir.build(sch.mod, target)
+        lib.export_library(topso)
+        f.write(f"{sortedrecords[0].run_secs[0].value}\n")
 
-    db = ms.database.MemoryDatabase()
-    db.commit_workload(mod)
-    db.commit_tuning_record(sortedrecords[-1])
-    sch = ms.tir_integration.compile_tir(db, mod, target)
-    print("Last mod")
-    print(sch.mod)
-    with tvm.transform.PassContext(config={"tir.disable_assert": True}):
-        lib = tvm.tir.build(sch.mod, target)
-    lib.export_library(lastso)
-
+        # last so
+        db = ms.database.MemoryDatabase()
+        db.commit_workload(sortedrecords[-1].workload.mod)
+        db.commit_tuning_record(sortedrecords[-1])
+        sch = ms.tir_integration.compile_tir(db, mod, target)
+        print("Lastsch mod")
+        print(sch.mod)
+        with tvm.transform.PassContext(config={"tir.disable_assert": True}):
+            lib = tvm.tir.build(sch.mod, target)
+        lib.export_library(lastso)
+        f.write(f"{sortedrecords[-1].run_secs[0].value}\n")
 
 if __name__ == "__main__":
     main()

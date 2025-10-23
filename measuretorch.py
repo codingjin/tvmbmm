@@ -44,7 +44,7 @@ def main():
         b_torch = torch.tensor(b_np, device="cuda", dtype=torch.float16)
         torch.bmm(a_torch, b_torch)
         monitor.begin_window("run")
-        for j in range(NUM_MEASURE):
+        for j in range(100):
             torch.bmm(a_torch, b_torch)
         energy = monitor.end_window("run")
         #print(energy)
@@ -70,7 +70,7 @@ def main():
     print(f"BMM torch batchsize={batchsize} M={M} N={N} K={K}")
     print(f"Mean energy consumption(x{NUM_MEASURE}): {mean} J, std: {std}")
 
-
+    
     a_np = np.random.uniform(size=(batchsize, M, K)).astype("float16")
     b_np = np.random.uniform(size=(batchsize, K, N)).astype("float16")
     a_torch = torch.tensor(a_np, device="cuda", dtype=torch.float16)
@@ -84,14 +84,14 @@ def main():
     end_event = torch.cuda.Event(enable_timing=True)
 
     start_event.record()
-    for _ in range(100):
+    for _ in range(NUM_MEASURE):
         torch.bmm(a_torch, b_torch)
     end_event.record()
 
     # Wait for all kernels to finish
     torch.cuda.synchronize()
 
-    timems = start_event.elapsed_time(end_event) / 100.0
+    timems = start_event.elapsed_time(end_event) / (1.0 * NUM_MEASURE)
 
     
     flops = 2 * batchsize * M * N * K

@@ -50,7 +50,7 @@ def main():
         c_nd = tvm.runtime.tensor(np.zeros((batchsize, M, N), dtype="float16"), device=tvm.cuda())
         func(a_nd, b_nd, c_nd)
         monitor.begin_window("run")
-        for j in range(NUM_MEASURE):
+        for j in range(100):
             func(a_nd, b_nd, c_nd)
         energy = monitor.end_window("run")
         #print(energy)
@@ -80,6 +80,7 @@ def main():
     print(f"BMM last batchsize={batchsize} M={M} N={N} K={K}")
     print(f"Mean energy consumption(x{NUM_MEASURE}): {mean} J, std: {std}")
 
+    """
     if not os.path.exists(LAST_RUNSECS):
         print(f"Error: File '{LAST_RUNSECS}' does not exist.")
         sys.exit(1)
@@ -98,6 +99,7 @@ def main():
     print(f"{gflops} GFLOPs")
     print("Complete!")
     print("----------------------------------------------\n")
+    """
 
 if __name__ == "__main__":
     main()
