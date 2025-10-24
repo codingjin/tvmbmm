@@ -1,5 +1,3 @@
-import tvm
-import os, sys
 import numpy as np
 import torch
 import argparse
@@ -9,12 +7,8 @@ NUM_WARMUP = 3
 NUM_RUN = 100
 NUM_MEASURE = 1000
 
-
-np.random.seed(137)
-
 def main():
     parser = argparse.ArgumentParser(description="Batch Matrix-multiplication")
-    
     parser.add_argument(
         "--batchsize", type=int, default=16,
         help="Batch size (default: 16)"
@@ -31,94 +25,84 @@ def main():
         "--K", type=int, default=4096,
         help="Matrix dimension K (default: 4096)"
     )
-
+    parser.add_argument(
+        "--device", type=int, default=0,
+        help="CUDA device ID (default: 0)"
+    )
     args = parser.parse_args()
-    batchsize, M, N, K = args.batchsize, args.M, args.N, args.K
+    batchsize, M, N, K, device_id = args.batchsize, args.M, args.N, args.K, args.device
 
+    # Set random seeds
+    np.random.seed(137)
+    torch.manual_seed(137)
+    torch.cuda.manual_seed(137)
+
+    # Set the specific CUDA device
+    device = torch.device(f"cuda:{device_id}")
+    torch.cuda.set_device(device)
+
+    # Initialize NVML and get handle for the specified device only
     pynvml.nvmlInit()
-    deviceCount = pynvml.nvmlDeviceGetCount()
-    handles, start_energy, consumed_energy = [], [], []
-    for i in range(deviceCount):
-        handles.append(pynvml.nvmlDeviceGetHandleByIndex(i))
-        start_energy.append(0)
-        consumed_energy.append(0)
+    handle = pynvml.nvmlDeviceGetHandleByIndex(device_id)
+
+    print(f"\n{'='*60}")
+    print(f"Running on: {torch.cuda.get_device_name(device)} (ID: {args.device})")
+    print(f"Torch {torch.__version__}, CUDA {torch.version.cuda}")
+    print(f"Device capability: {torch.cuda.get_device_capability(device)}")
+    print(f"Measuring the energy consumption via pynvml for torch.bmm")
+    print(f"Configuration: batchsize={batchsize}, M={M}, N={N}, K={K}")
+    print(f"Measurements: {NUM_WARMUP} warmups, {NUM_RUN} runs × {NUM_MEASURE} operations")
 
     # warmup
-    print("warmup")
+    print(f"Starting warmup...")
     for i in range(NUM_WARMUP):
-        a_np = np.random.uniform(size=(batchsize, M, K)).astype("float16")
-        b_np = np.random.uniform(size=(batchsize, K, N)).astype("float16")
-        a_torch = torch.tensor(a_np, device="cuda", dtype=torch.float16)
-        b_torch = torch.tensor(b_np, device="cuda", dtype=torch.float16)
+        a_torch = torch.randn(batchsize, M, K, device=device, dtype=torch.float16)
+        b_torch = torch.randn(batchsize, K, N, device=device, dtype=torch.float16)
         torch.bmm(a_torch, b_torch)
 
-        for k in range(deviceCount):
-            start_energy[k] = pynvml.nvmlDeviceGetTotalEnergyConsumption(handles[k])
+        start_energy = pynvml.nvmlDeviceGetTotalEnergyConsumption(handle)
         
-        for j in range(NUM_MEASURE):
+        for _ in range(NUM_MEASURE):
             torch.bmm(a_torch, b_torch)
         
         torch.cuda.synchronize()
-        for k in range(deviceCount):
-            consumed_energy[k] = pynvml.nvmlDeviceGetTotalEnergyConsumption(handles[k]) - start_energy[k]
-        total_energy = sum(consumed_energy) * 0.001
-        print(f"Energy: {total_energy} J")
-    print("warmup done")
+        consumed_energy = pynvml.nvmlDeviceGetTotalEnergyConsumption(handle) - start_energy
+        total_energy = consumed_energy * 0.001  # Convert mJ to J
+        print(f"Energy(x{NUM_MEASURE}): {total_energy:.2f} J")
+        del a_torch, b_torch
+    print("Warmup done\n")
     
     # run
     results = []
-    for i in range(NUM_RUN):
-        a_np = np.random.uniform(size=(batchsize, M, K)).astype("float16")
-        b_np = np.random.uniform(size=(batchsize, K, N)).astype("float16")
-        a_torch = torch.tensor(a_np, device="cuda", dtype=torch.float16)
-        b_torch = torch.tensor(b_np, device="cuda", dtype=torch.float16)
+    for _ in range(NUM_RUN):
+        a_torch = torch.randn(batchsize, M, K, device=device, dtype=torch.float16)
+        b_torch = torch.randn(batchsize, K, N, device=device, dtype=torch.float16)
         torch.bmm(a_torch, b_torch)
+        torch.cuda.synchronize()
         
-        for k in range(deviceCount):
-            start_energy[k] = pynvml.nvmlDeviceGetTotalEnergyConsumption(handles[k])
+        start_energy = pynvml.nvmlDeviceGetTotalEnergyConsumption(handle)
 
-        for j in range(NUM_MEASURE):
+        for __ in range(NUM_MEASURE):
             torch.bmm(a_torch, b_torch)
         
         torch.cuda.synchronize()
-        for k in range(deviceCount):
-            consumed_energy[k] = pynvml.nvmlDeviceGetTotalEnergyConsumption(handles[k]) - start_energy[k]
-        total_energy = sum(consumed_energy) * 0.001
+        consumed_energy = pynvml.nvmlDeviceGetTotalEnergyConsumption(handle) - start_energy
+        total_energy = consumed_energy * 0.001  # Convert mJ to J
         results.append(total_energy)
-        
-    mean, std = np.mean(results), np.std(results)
-    print(f"BMM torch batchsize={batchsize} M={M} N={N} K={K}")
-    print(f"Mean energy consumption(x{NUM_MEASURE}): {mean} J, std: {std}")
-
-
-    a_np = np.random.uniform(size=(batchsize, M, K)).astype("float16")
-    b_np = np.random.uniform(size=(batchsize, K, N)).astype("float16")
-    a_torch = torch.tensor(a_np, device="cuda", dtype=torch.float16)
-    b_torch = torch.tensor(b_np, device="cuda", dtype=torch.float16)
-    # Warm-up
-    torch.bmm(a_torch, b_torch)
-    torch.cuda.synchronize()
-
-    # CUDA event-based timing
-    start_event = torch.cuda.Event(enable_timing=True)
-    end_event = torch.cuda.Event(enable_timing=True)
-
-    start_event.record()
-    for _ in range(100):
-        torch.bmm(a_torch, b_torch)
-    end_event.record()
-
-    # Wait for all kernels to finish
-    torch.cuda.synchronize()
-
-    timems = start_event.elapsed_time(end_event) / 100.0
-
+        del a_torch, b_torch
     
-    flops = 2 * batchsize * M * N * K
-    gflops = flops * 1.0e-6 / timems if timems != 0 else float("inf")
-    print(f"{gflops} GFLOPs")
-    print("Complete!")
-    print("----------------------------------------------\n")
+    # Statistics
+    results = np.array(results)
+    mean = np.mean(results)
+    std = np.std(results)
+    
+    print(f"\n{'='*60}")
+    print(f"Configuration: batchsize={batchsize}, M={M}, N={N}, K={K}")
+    print(f"Measurements: {NUM_RUN} runs × {NUM_MEASURE} operations")
+    print(f"Mean energy(x{NUM_MEASURE}): {mean:.3f} J (std: {std:.3f} J)")
+    print(f"{'='*60}")
+    
+    pynvml.nvmlShutdown()
 
 if __name__ == "__main__":
     main()
