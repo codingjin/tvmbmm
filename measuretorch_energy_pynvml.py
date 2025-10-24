@@ -92,6 +92,7 @@ def main():
         results.append(total_energy)
         del a_torch, b_torch
     
+    pynvml.nvmlShutdown()
     # Statistics
     results = np.array(results)
     mean = np.mean(results)
@@ -102,8 +103,6 @@ def main():
     print(f"Measurements: {NUM_RUN} runs × {NUM_MEASURE} operations")
     print(f"Mean energy(x{NUM_MEASURE}): {mean:.3f} J (std: {std:.3f} J)")
     print(f"{'='*60}")
-    
-    pynvml.nvmlShutdown()
 
 if __name__ == "__main__":
     main()
