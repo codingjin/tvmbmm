@@ -59,6 +59,7 @@ def main():
         a_torch = torch.randn(batchsize, M, K, device=device, dtype=torch.float16)
         b_torch = torch.randn(batchsize, K, N, device=device, dtype=torch.float16)
         torch.bmm(a_torch, b_torch)
+        torch.cuda.synchronize()
 
         start_energy = pynvml.nvmlDeviceGetTotalEnergyConsumption(handle)
         
@@ -68,7 +69,7 @@ def main():
         torch.cuda.synchronize()
         consumed_energy = pynvml.nvmlDeviceGetTotalEnergyConsumption(handle) - start_energy
         total_energy = consumed_energy * 0.001  # Convert mJ to J
-        print(f"Energy(x{NUM_MEASURE}): {total_energy:.2f} J")
+        print(f"Energy(x{NUM_MEASURE}): {total_energy:.3f} J")
         del a_torch, b_torch
     print("Warmup done\n")
     
