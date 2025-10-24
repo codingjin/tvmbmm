@@ -7,10 +7,8 @@ from tvm.script import tir as T
 from typing import Tuple
 from tvm.meta_schedule.testing import te_workload
 from tvm.te import create_prim_func
-import os
 from pathlib import Path
 import subprocess
-
 
 #target = tvm.target.Target(f"cuda -max_threads_per_block 1024 -max_shared_memory_per_block 49152") # 3090
 #target = tvm.target.Target({"kind": "cuda", "arch": "sm_86", "max_threads_per_block": 1024, "max_shared_memory_per_block": 49152}) # 3090
@@ -130,7 +128,7 @@ def main():
 
     bmm = create_prim_func(batch_matmul_mkkn(batchsize, M, K, N, in_dtype="float16", out_dtype="float16"))
     print(bmm)
-
+    
     database = ms.tune_tir(
         mod=bmm,
         target=target,
