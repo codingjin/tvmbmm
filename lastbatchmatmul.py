@@ -128,7 +128,7 @@ def main():
 
     bmm = create_prim_func(batch_matmul_mkkn(batchsize, M, K, N, in_dtype="float16", out_dtype="float16"))
     print(bmm)
-    
+
     database = ms.tune_tir(
         mod=bmm,
         target=target,
@@ -137,15 +137,10 @@ def main():
         work_dir="./",
         runner=ms.runner.LocalRunner(
             evaluator_config=EvaluatorConfig(
-                number=10, # 10
+                number=10,
                 enable_cpu_cache_flush=False,
             )
-        ),
-        cost_model=ms.cost_model.XGBModel(
-            extractor=ms.feature_extractor.PerStoreFeature(),
-            adaptive_training=False,
-        ),
-        strategy=ms.search_strategy.EvolutionarySearch(),
+        )
     )
     
     tune_record_list = database.get_all_tuning_records()
